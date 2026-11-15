@@ -1,0 +1,13 @@
+work/
+results/
+.nextflow/
+.nextflow.log*
+*.nextflow.log
+*.bam
+*.bai
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+__pycache__/
+.pytest_cache/

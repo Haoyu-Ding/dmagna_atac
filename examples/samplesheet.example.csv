@@ -1,0 +1,5 @@
+sample_id,fastq_1,fastq_2,condition,replicate
+fish_r4,/path/to/GC187803_CCTGTCAT-ATGACAGG_S17_L001_R1_001.fastq.gz,/path/to/GC187803_CCTGTCAT-ATGACAGG_S17_L001_R2_001.fastq.gz,fish,1
+fish_r5,/path/to/GC187803_TTAGGTCG-CGACCTAA_S22_L001_R1_001.fastq.gz,/path/to/GC187803_TTAGGTCG-CGACCTAA_S22_L001_R2_001.fastq.gz,fish,2
+control_r4,/path/to/GC187803_GTGCCATA-TATGGCAC_S20_L001_R1_001.fastq.gz,/path/to/GC187803_GTGCCATA-TATGGCAC_S20_L001_R2_001.fastq.gz,control,1
+control_r1,/path/to/GC187803_GGCGTTAT-ATAACGCC_S19_L001_R1_001.fastq.gz,/path/to/GC187803_GGCGTTAT-ATAACGCC_S19_L001_R2_001.fastq.gz,control,2

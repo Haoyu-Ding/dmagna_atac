@@ -1,0 +1,13 @@
+name: dmagna-atac
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - fastqc=0.12.1
+  - cutadapt=4.9
+  - bwa-mem2=2.2.1
+  - samtools=1.20
+  - macs3=3.0.3
+  - multiqc=1.25.1

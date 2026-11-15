@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "dmagna_atac parameters",
+  "type": "object",
+  "properties": {
+    "samplesheet": {
+      "type": "string",
+      "description": "CSV sample sheet containing paired-end FASTQ paths"
+    },
+    "reference_fasta": {
+      "type": "string",
+      "description": "Fixed D. magna reference FASTA"
+    },
+    "bwa_index_dir": {
+      "type": "string",
+      "description": "Directory containing the BWA-MEM2 index files for the reference"
+    },
+    "mitochondrial_contig": {
+      "type": "string",
+      "description": "Mitochondrial contig name in the selected reference"
+    },
+    "macs_genome_size": {
+      "type": ["string", "number"],
+      "description": "Effective genome size passed to MACS3"
+    },
+    "outdir": {
+      "type": "string",
+      "default": "results"
+    },
+    "min_length": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 20
+    }
+  },
+  "required": [
+    "samplesheet",
+    "reference_fasta",
+    "bwa_index_dir",
+    "mitochondrial_contig",
+    "macs_genome_size"
+  ],
+  "additionalProperties": true
+}
