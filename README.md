@@ -1,50 +1,50 @@
 # dmagna_atac
 
-独立的 *Daphnia magna* paired-end ATAC-seq Nextflow pipeline。第一版采用样本表作为唯一输入选择来源，不会扫描 FASTQ 目录，也不会根据文件名猜测样本身份。
+An independent paired-end ATAC-seq pipeline for *Daphnia magna* implemented with Nextflow. Version 1 uses the sample sheet as the only source of input selection: it does not scan FASTQ directories or infer sample identity from filenames.
 
-## 当前实现
+## Current implementation
 
-- 严格校验并规范化 CSV sample sheet；校验通过后才进入分析流程。
-- 允许同一个 `sample_id` 对应多个 lane，并在 trimming 前合并对应 R1/R2。
-- 原始 FASTQ FastQC。
-- Cutadapt adapter/quality trimming。
-- BWA-MEM2 paired-end alignment、排序和索引。
-- `samtools fixmate`、`markdup`、proper-pair/低质量 read 过滤和线粒体 contig 去除。
-- MACS3 `BAMPE` 模式逐样本 peak calling。
-- trimmed-read QC、MultiQC 和 Nextflow execution report/timeline/trace。
-- 记录 `samplesheet.used.csv`、`input_files.tsv`、输入校验报告和软件版本。
+- Strict validation and normalization of the CSV sample sheet before analysis starts.
+- Multiple lanes can be assigned to the same `sample_id`; corresponding R1 and R2 files are merged before trimming.
+- FastQC on raw FASTQ files.
+- Adapter and quality trimming with Cutadapt.
+- Paired-end alignment with BWA-MEM2, followed by BAM sorting and indexing.
+- `samtools fixmate`, duplicate removal with `markdup`, proper-pair/alignment filtering, and mitochondrial-contig removal.
+- Per-sample peak calling with MACS3 in `BAMPE` mode.
+- QC for trimmed reads, MultiQC, and Nextflow execution reports, timeline, and trace.
+- Recording of `samplesheet.used.csv`, `input_files.tsv`, the input-validation report, and software versions.
 
-参考 FASTA、BWA-MEM2 index、线粒体 contig 名称和 MACS3 effective genome size 都必须由使用者针对最终采用的 *D. magna* reference 明确提供，因此没有写死在代码中。
+The reference FASTA, BWA-MEM2 index, mitochondrial contig name, and MACS3 effective genome size must be explicitly provided for the selected *D. magna* reference. They are intentionally not hard-coded in the pipeline.
 
-## 先运行样本表校验测试
+## Run the sample-sheet tests
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## 准备容器
+## Build the container
 
-在可以构建 Docker 镜像的环境中：
+Build the Docker image in an environment with Docker:
 
 ```bash
 docker build -t dmagna-atac:0.1.0 .
 ```
 
-VSC 使用 Apptainer。可以把同一个镜像发布到一个 VSC 可访问的 registry，或者在有 Docker 的机器上转换成 `.sif` 后上传。`nextflow.config` 已提供 `docker` 和 `apptainer` 两个 profile。
+VSC uses Apptainer for container execution. The same image can be published to a registry accessible from VSC, or converted to a `.sif` image on a machine with Docker and then uploaded. `nextflow.config` provides both `docker` and `apptainer` profiles.
 
-## 准备参考基因组
+## Prepare the reference genome
 
-需要先确定并记录最终采用的 *D. magna* reference 版本，随后准备 FASTA 和 BWA-MEM2 index。示意命令如下：
+Select and record the final *D. magna* reference version, then prepare the FASTA and BWA-MEM2 index. The following is an example:
 
 ```bash
 bwa-mem2 index -p /path/to/reference/bwa_index/dmagna.fa /path/to/reference/dmagna.fa
 ```
 
-`--bwa_index_dir` 应指向包含该 prefix 产生的全部 index 文件的目录。线粒体 contig 名称和 `--macs_genome_size` 必须来自同一个 reference 配置，不能凭样本文件名推断。
+`--bwa_index_dir` must point to the directory containing all index files generated from that prefix. The mitochondrial contig name and `--macs_genome_size` must come from the same reference configuration; neither should be inferred from sample filenames.
 
-## VSC 运行命令
+## Run on VSC
 
-在 VSC 上 clone 仓库、准备 sample sheet 和 reference 后：
+Clone the repository on VSC and prepare the sample sheet and reference files. Then run:
 
 ```bash
 nextflow run . \
@@ -58,11 +58,11 @@ nextflow run . \
   --outdir /path/to/results
 ```
 
-第一次正式运行前，建议先用一个小的、真实的 paired-end 子集验证容器、参考索引、线粒体 contig 和 scheduler 配置。正式运行应保留 `results/pipeline_info/` 中的输入清单和执行记录。
+Before the first full run, use a small real paired-end subset to verify the container, reference index, mitochondrial contig, and scheduler configuration. Preserve the input manifest and execution records under `results/pipeline_info/` for every formal run.
 
-## 输出目录
+## Output structure
 
-主要输出位于：
+The main outputs are organized as follows:
 
 ```text
 results/
@@ -75,12 +75,12 @@ results/
 └── pipeline_info/
 ```
 
-## 下一阶段
+## Next steps
 
-当前代码已经覆盖第一版的工程骨架，但正式分析前仍需完成三件事：
+The first-version engineering skeleton is in place. Before the formal analysis, complete these three tasks:
 
-1. 从实验记录确认四个样本的 `condition`、`replicate`，并把真实 FASTQ 路径写入 sample sheet。
-2. 确认 reference 版本、线粒体 contig 名称和 MACS3 effective genome size，并在 VSC 生成/验证 BWA-MEM2 index。
-3. 在 VSC 先跑小规模 smoke test，再跑四样本完整流程；检查 `input_validation_report.txt`、MultiQC、BAM 统计和每个样本的 peak 文件。
+1. Confirm `condition` and `replicate` for the four samples from the experimental records, then add the real FASTQ paths to the sample sheet.
+2. Confirm the reference version, mitochondrial contig name, and MACS3 effective genome size; generate and verify the BWA-MEM2 index on VSC.
+3. Run a small VSC smoke test, then run the complete four-sample workflow. Inspect `input_validation_report.txt`, MultiQC, BAM statistics, and the peak files for every sample.
 
-差异可及性、共识 peak、peak 注释、motif 和功能富集不属于当前版本，等四个样本的 QC 和生物学重复关系确认后再单独设计。
+Differential accessibility, consensus peaks, peak annotation, motif analysis, and functional enrichment are outside the scope of Version 1. They should be designed separately after the four-sample QC and biological-replicate structure have been confirmed.
