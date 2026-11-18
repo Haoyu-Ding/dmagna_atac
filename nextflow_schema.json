@@ -27,10 +27,23 @@
       "type": "string",
       "default": "results"
     },
+    "container": {
+      "type": "string",
+      "default": "ghcr.io/haoyu-ding/dmagna_atac:0.1.0",
+      "description": "Docker/OCI image name or local Apptainer SIF path"
+    },
     "min_length": {
       "type": "integer",
       "minimum": 1,
       "default": 20
+    },
+    "slurm_partition": {
+      "type": ["string", "null"],
+      "description": "Optional VSC Slurm partition"
+    },
+    "slurm_account": {
+      "type": ["string", "null"],
+      "description": "Optional VSC Slurm account/project allocation"
     }
   },
   "required": [
