@@ -24,13 +24,21 @@ python3 -m unittest discover -s tests -v
 
 ## Build the container
 
-Build the Docker image in an environment with Docker:
+The repository uses an Apptainer definition file as the container source:
 
-```bash
-docker build -t dmagna-atac:0.1.0 .
+```text
+containers/dmagna-atac.def
 ```
 
-The repository also contains a GitHub Actions workflow that builds this Dockerfile and publishes a versioned image to GitHub Container Registry. It is triggered by a version tag such as `v0.1.0`, or manually from the Actions page. VSC uses Apptainer for container execution, so the `vsc` profile can pull the public GHCR image or use a local `.sif` image. The container image itself is not stored in Git.
+Build the versioned SIF image on VSC, preferably from a compute allocation with enough memory:
+
+```bash
+apptainer build --fakeroot \
+  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
+  "$HOME/dmagna_atac/containers/dmagna-atac.def"
+```
+
+The definition installs the exact versions listed in `environment.yml` and runs built-in container tests during the build. The SIF image is generated on VSC and is not stored in Git.
 
 ## Prepare the reference genome
 
@@ -56,10 +64,11 @@ nextflow run . \
   --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/bwa_index" \
   --mitochondrial_contig '<MITO_CONTIG_FROM_REFERENCE>' \
   --macs_genome_size '<EFFECTIVE_GENOME_SIZE>' \
+  --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
   --outdir "$VSC_DATA/dmagna_atac/results/run-001"
 ```
 
-The `vsc` profile submits processes to Slurm and runs them with Apptainer. If a local SIF image is used, add `--container /path/to/dmagna-atac-0.1.0.sif`. If the VSC allocation requires explicit values, add `--slurm_account <account>` and `--slurm_partition <partition>`.
+The `vsc` profile submits processes to Slurm and runs them with the local Apptainer SIF image. If the VSC allocation requires explicit values, add `--slurm_account <account>` and `--slurm_partition <partition>`.
 
 Before the first full run, use a small real paired-end subset to verify the container, reference index, mitochondrial contig, and scheduler configuration. Preserve the input manifest and execution records under `results/pipeline_info/` for every formal run.
 
@@ -82,7 +91,7 @@ results/
 
 Before the formal analysis, complete these tasks:
 
-1. Push a version tag such as `v0.1.0` to build the GHCR container, and make the package public if GitHub marks it private by default.
+1. Pull the repository on VSC and build `dmagna-atac-0.1.0.sif` from the Apptainer definition.
 2. Confirm `condition` and `replicate` for the four samples from the experimental records, then add the real FASTQ paths to the VSC sample sheet.
 3. Confirm the reference version, mitochondrial contig name, and MACS3 effective genome size; generate and verify the BWA-MEM2 index on VSC.
 4. Run a small VSC smoke test, then run the complete four-sample workflow. Inspect `input_validation_report.txt`, MultiQC, BAM statistics, and the peak files for every sample.

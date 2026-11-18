@@ -9,5 +9,6 @@ results/
 *.fastq.gz
 *.fq
 *.fq.gz
+*.sif
 __pycache__/
 .pytest_cache/

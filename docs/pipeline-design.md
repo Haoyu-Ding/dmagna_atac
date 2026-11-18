@@ -222,12 +222,12 @@ The copied `samplesheet.used.csv` is important: it records the exact input selec
 
 ## 11. Container and execution design
 
-The workflow code and Dockerfile will be stored in GitHub. The pipeline will not run on the local computer.
+The workflow code and Apptainer definition will be stored in GitHub. The pipeline will not run on the local computer.
 
 The local workspace is used to:
 
 - edit workflow code;
-- edit the Dockerfile and configuration;
+- edit the Apptainer definition and configuration;
 - record metadata and documentation;
 - commit and push changes to GitHub.
 
@@ -239,7 +239,7 @@ The VSC is used to:
 - run the containerised tools;
 - inspect and archive results.
 
-On VSC, the container execution layer will be designed for Apptainer while the Dockerfile remains the software-environment definition. VSC documents Apptainer as the HPC-compatible runtime for Docker/OCI-derived images. See the [VSC container documentation](https://docs.vscentrum.be/compute/software/installing_software/containers.html).
+The Apptainer definition at `containers/dmagna-atac.def` is the software-environment definition. It installs the pinned packages from `environment.yml` and is built on VSC into a versioned SIF image. The `vsc` Nextflow profile uses Slurm and executes every process with that local SIF image. See the [VSC container documentation](https://docs.vscentrum.be/compute/software/installing_software/containers.html) and the project-specific [VSC run guide](vsc-run.md).
 
 ## 12. First-version acceptance criteria
 
@@ -257,4 +257,3 @@ Version 1 is considered functional when it can:
 ## 13. Design decision
 
 The project will use a samplesheet-first input model. Automatic FASTQ directory scanning will not be part of the first version. This keeps sample selection explicit, prevents accidental inclusion of unrelated demultiplexed data, and follows the input model used by established Nextflow pipelines such as `nf-core/atacseq`.
-

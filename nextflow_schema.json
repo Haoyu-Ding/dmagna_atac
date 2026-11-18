@@ -29,8 +29,7 @@
     },
     "container": {
       "type": "string",
-      "default": "ghcr.io/haoyu-ding/dmagna_atac:0.1.0",
-      "description": "Docker/OCI image name or local Apptainer SIF path"
+      "description": "Versioned local Apptainer SIF image path"
     },
     "min_length": {
       "type": "integer",
@@ -51,7 +50,8 @@
     "reference_fasta",
     "bwa_index_dir",
     "mitochondrial_contig",
-    "macs_genome_size"
+    "macs_genome_size",
+    "container"
   ],
   "additionalProperties": true
 }

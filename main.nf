@@ -13,7 +13,7 @@ params.bwa_index_dir = null
 params.mitochondrial_contig = null
 params.macs_genome_size = null
 params.outdir = 'results'
-params.container = 'ghcr.io/haoyu-ding/dmagna_atac:0.1.0'
+params.container = null
 params.min_length = 20
 params.adapter_r1 = 'AGATCGGAAGAGCACACGTCTGAACTCCAGTCA'
 params.adapter_r2 = 'AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT'
@@ -281,6 +281,9 @@ workflow {
     }
     if (!params.macs_genome_size) {
         error "Missing --macs_genome_size: provide the effective genome size selected for this reference"
+    }
+    if (!params.container) {
+        error "Missing --container: provide the versioned Apptainer SIF image"
     }
 
     samplesheet_ch = Channel.fromPath(params.samplesheet, checkIfExists: true)

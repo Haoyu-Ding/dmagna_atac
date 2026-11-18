@@ -1,0 +1,37 @@
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%files
+    environment.yml /tmp/environment.yml
+    bin/validate_samplesheet.py /opt/dmagna-atac/bin/validate_samplesheet.py
+
+%post
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    mkdir -p /opt/dmagna-atac/bin
+    micromamba install --yes --name base --file /tmp/environment.yml
+    micromamba clean --all --yes
+    chmod 0755 /opt/dmagna-atac/bin/validate_samplesheet.py
+    rm -f /tmp/environment.yml
+
+%environment
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    export PATH=/opt/conda/bin:/opt/dmagna-atac/bin:$PATH
+
+%labels
+    Author Haoyu Ding
+    Project dmagna_atac
+    Version 0.1.0
+
+%test
+    export PATH=/opt/conda/bin:/opt/dmagna-atac/bin:$PATH
+    python --version
+    fastqc --version
+    cutadapt --version
+    bwa-mem2 version
+    samtools --version
+    macs3 --version
+    multiqc --version
+    python /opt/dmagna-atac/bin/validate_samplesheet.py --help
+
+%runscript
+    exec "$@"
