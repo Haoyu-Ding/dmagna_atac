@@ -60,10 +60,10 @@ nextflow run . \
   -resume \
   -work-dir "$VSC_SCRATCH/dmagna_atac/work" \
   --samplesheet "$VSC_DATA/dmagna_atac/metadata/samplesheet.csv" \
-  --reference_fasta "$VSC_DATA/dmagna_atac/reference/dmagna.fa" \
-  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/bwa_index" \
-  --mitochondrial_contig '<MITO_CONTIG_FROM_REFERENCE>' \
-  --macs_genome_size '<EFFECTIVE_GENOME_SIZE>' \
+  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa" \
+  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index" \
+  --mitochondrial_contig 'NC_026914.1' \
+  --macs_genome_size '161439708' \
   --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
   --outdir "$VSC_DATA/dmagna_atac/results/run-001"
 ```

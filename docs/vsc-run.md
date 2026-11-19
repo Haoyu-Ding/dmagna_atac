@@ -111,10 +111,10 @@ Create `$VSC_DATA/dmagna_atac/metadata/samplesheet.csv` using the real VSC paths
 
 ```csv
 sample_id,fastq_1,fastq_2,condition,replicate
-fish_r4,/scratch/.../GC187803_CCTGTCAT-ATGACAGG_S17_L001_R1_001.fastq.gz,/scratch/.../GC187803_CCTGTCAT-ATGACAGG_S17_L001_R2_001.fastq.gz,fish,1
-fish_r5,/scratch/.../GC187803_TTAGGTCG-CGACCTAA_S22_L001_R1_001.fastq.gz,/scratch/.../GC187803_TTAGGTCG-CGACCTAA_S22_L001_R2_001.fastq.gz,fish,2
-control_r4,/scratch/.../GC187803_GTGCCATA-TATGGCAC_S20_L001_R1_001.fastq.gz,/scratch/.../GC187803_GTGCCATA-TATGGCAC_S20_L001_R2_001.fastq.gz,control,1
-control_r1,/scratch/.../GC187803_GGCGTTAT-ATAACGCC_S19_L001_R1_001.fastq.gz,/scratch/.../GC187803_GGCGTTAT-ATAACGCC_S19_L001_R2_001.fastq.gz,control,2
+fish_r4,/scratch/.../GC187803_CCTGTCAT-ATGACAGG_S17_L001_R1_001.fastq.gz,/scratch/.../GC187803_CCTGTCAT-ATGACAGG_S17_L001_R2_001.fastq.gz,fish,
+fish_r5,/scratch/.../GC187803_TTAGGTCG-CGACCTAA_S22_L001_R1_001.fastq.gz,/scratch/.../GC187803_TTAGGTCG-CGACCTAA_S22_L001_R2_001.fastq.gz,fish,
+control_r4,/scratch/.../GC187803_GTGCCATA-TATGGCAC_S20_L001_R1_001.fastq.gz,/scratch/.../GC187803_GTGCCATA-TATGGCAC_S20_L001_R2_001.fastq.gz,control,
+control_r1,/scratch/.../GC187803_GGCGTTAT-ATAACGCC_S19_L001_R1_001.fastq.gz,/scratch/.../GC187803_GGCGTTAT-ATAACGCC_S19_L001_R2_001.fastq.gz,control,
 ```
 
 The `condition` and `replicate` values must be confirmed from the experimental record. They are metadata only in Version 1.
@@ -124,11 +124,13 @@ The `condition` and `replicate` values must be confirmed from the experimental r
 Place the selected reference FASTA and its BWA-MEM2 index in the same reference area:
 
 ```text
-$VSC_DATA/dmagna_atac/reference/dmagna.fa
-$VSC_DATA/dmagna_atac/reference/bwa_index/dmagna.fa.*
+$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa
+$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index/dmagna_GCF_020631705.1.fa.*
 ```
 
 The index files must be generated from this exact FASTA. Before running, confirm the mitochondrial contig name and the effective genome size for this assembly. These values are required command-line parameters and are deliberately not guessed by the workflow.
+
+For the current reference, use `NC_026914.1` as the mitochondrial contig and `161439708` as the effective genome size.
 
 ## 8. Submit the pipeline
 
@@ -144,10 +146,10 @@ nextflow run . \
   -resume \
   -work-dir "$VSC_SCRATCH/dmagna_atac/work" \
   --samplesheet "$VSC_DATA/dmagna_atac/metadata/samplesheet.csv" \
-  --reference_fasta "$VSC_DATA/dmagna_atac/reference/dmagna.fa" \
-  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/bwa_index" \
-  --mitochondrial_contig '<MITO_CONTIG_FROM_REFERENCE>' \
-  --macs_genome_size '<EFFECTIVE_GENOME_SIZE>' \
+  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa" \
+  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index" \
+  --mitochondrial_contig 'NC_026914.1' \
+  --macs_genome_size '161439708' \
   --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
   --outdir "$VSC_DATA/dmagna_atac/results/run-001"
 ```
