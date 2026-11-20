@@ -124,13 +124,11 @@ The `condition` and `replicate` values must be confirmed from the experimental r
 Place the selected reference FASTA and its BWA-MEM2 index in the same reference area:
 
 ```text
-$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa
-$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index/dmagna_GCF_020631705.1.fa.*
+$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa
+$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/index/dmagna_GCA_030254905.1.fa.*
 ```
 
-The index files must be generated from this exact FASTA. Before running, confirm the mitochondrial contig name and the effective genome size for this assembly. These values are required command-line parameters and are deliberately not guessed by the workflow.
-
-For the current reference, use `NC_026914.1` as the mitochondrial contig and `161439708` as the effective genome size.
+The selected assembly is `GCA_030254905.1` (`UOB_LRV0_1`, genotype `LRV0_1`). The index files must be generated from this exact FASTA. For this assembly, use `CM058182.1` as the mitochondrial contig and `129954900` as the effective genome size. These values are required command-line parameters and are deliberately not guessed by the workflow.
 
 ## 8. Submit the pipeline
 
@@ -146,10 +144,10 @@ nextflow run . \
   -resume \
   -work-dir "$VSC_SCRATCH/dmagna_atac/work" \
   --samplesheet "$VSC_DATA/dmagna_atac/metadata/samplesheet.csv" \
-  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa" \
-  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index" \
-  --mitochondrial_contig 'NC_026914.1' \
-  --macs_genome_size '161439708' \
+  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa" \
+  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/index" \
+  --mitochondrial_contig 'CM058182.1' \
+  --macs_genome_size '129954900' \
   --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
   --outdir "$VSC_DATA/dmagna_atac/results/run-001"
 ```

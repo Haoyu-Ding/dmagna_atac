@@ -1,99 +1,103 @@
-# dmagna_atac
+# dmagna-atac
 
-An independent paired-end ATAC-seq pipeline for *Daphnia magna* implemented with Nextflow. Version 1 uses the sample sheet as the only source of input selection: it does not scan FASTQ directories or infer sample identity from filenames.
+An independent paired-end ATAC-seq workflow for *Daphnia magna*, developed as a KU Leuven research-course project.
 
-## Current implementation
+The project takes inspiration from [nf-core/atacseq](https://github.com/nf-core/atacseq), but is implemented as a smaller, independently designed workflow. Its purpose is to provide a clear and reproducible starting point for learning workflow development, containerized software management, and ATAC-seq data processing on the KU Leuven VSC.
 
-- Strict validation and normalization of the CSV sample sheet before analysis starts.
-- Multiple lanes can be assigned to the same `sample_id`; corresponding R1 and R2 files are merged before trimming.
-- FastQC on raw FASTQ files.
-- Adapter and quality trimming with Cutadapt.
-- Paired-end alignment with BWA-MEM2, followed by BAM sorting and indexing.
-- `samtools fixmate`, duplicate removal with `markdup`, proper-pair/alignment filtering, and mitochondrial-contig removal.
-- Per-sample peak calling with MACS3 in `BAMPE` mode.
-- QC for trimmed reads, MultiQC, and Nextflow execution reports, timeline, and trace.
-- Recording of `samplesheet.used.csv`, `input_files.tsv`, the input-validation report, and software versions.
+## Project goal
 
-The reference FASTA, BWA-MEM2 index, mitochondrial contig name, and MACS3 effective genome size must be explicitly provided for the selected *D. magna* reference. They are intentionally not hard-coded in the pipeline.
+Version 1 focuses on a complete per-sample path from raw paired-end reads to reproducible peak calls. The workflow is designed to accept an arbitrary number of samples through an explicit sample sheet; sample identity is never inferred from directory contents or sequencing filenames.
 
-## Run the sample-sheet tests
+The current project dataset contains four selected libraries:
 
-```bash
-python3 -m unittest discover -s tests -v
-```
+| Sample | Condition | Source library |
+| --- | --- | --- |
+| `fish_r4` | fish | `S17`, `CCTGTCAT-ATGACAGG` |
+| `fish_r5` | fish | `S22`, `TTAGGTCG-CGACCTAA` |
+| `control_r4` | control | `S20`, `GTGCCATA-TATGGCAC` |
+| `control_r1` | control | `S19`, `GGCGTTAT-ATAACGCC` |
 
-## Build the container
+Index reads, undetermined reads, and the two excluded libraries are not part of this Version 1 input set. The final sample sheet remains a VSC-side metadata file because it contains storage-specific FASTQ paths.
 
-The repository uses an Apptainer definition file as the container source:
+## Version 1 workflow
 
 ```text
-containers/dmagna-atac.def
+paired-end FASTQ
+        |
+sample-sheet validation
+        |
+raw-read QC (FastQC)
+        |
+adapter and quality trimming (Cutadapt)
+        |
+paired-end alignment (BWA-MEM2)
+        |
+BAM sorting, indexing, duplicate removal, filtering
+        |
+mitochondrial-read removal
+        |
+per-sample peak calling (MACS3, BAMPE)
+        |
+QC aggregation and execution reports (MultiQC / Nextflow)
 ```
 
-Build the versioned SIF image on VSC, preferably from a compute allocation with enough memory:
+The main per-sample outputs are:
 
-```bash
-apptainer build --fakeroot \
-  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
-  "$HOME/dmagna_atac/containers/dmagna-atac.def"
-```
+- filtered, indexed BAM files;
+- MACS3 `narrowPeak` and summit files;
+- raw and trimmed-read QC reports;
+- alignment and filtering statistics;
+- a combined MultiQC report;
+- input, software, and workflow execution records.
 
-The definition installs the exact versions listed in `environment.yml` and runs built-in container tests during the build. The SIF image is generated on VSC and is not stored in Git.
+Differential accessibility, consensus peak construction, peak annotation, motif analysis, and functional enrichment are intentionally outside the scope of Version 1.
 
-## Prepare the reference genome
+## Reproducibility design
 
-Select and record the final *D. magna* reference version, then prepare the FASTA and BWA-MEM2 index. The following is an example:
+- **Nextflow** controls process dependencies, data flow, parallel execution, and resumability.
+- **Apptainer** provides the versioned software environment required on VSC.
+- **Slurm** is used for scheduled execution on VSC.
+- **The sample sheet is the input contract.** It defines sample IDs, paired FASTQ files, and optional metadata such as condition and replicate.
+- **Reference parameters are explicit.** The workflow requires the reference FASTA, BWA-MEM2 index, mitochondrial contig, and MACS3 effective genome size to be supplied together.
+- **Large data are kept outside Git.** Code and configuration belong in the repository; FASTQ files, reference files, containers, intermediate files, and results belong in VSC storage.
 
-```bash
-bwa-mem2 index -p /path/to/reference/bwa_index/dmagna.fa /path/to/reference/dmagna.fa
-```
+## Current reference configuration
 
-`--bwa_index_dir` must point to the directory containing all index files generated from that prefix. The mitochondrial contig name and `--macs_genome_size` must come from the same reference configuration; neither should be inferred from sample filenames.
+The selected working reference is the NCBI *D. magna* GenBank assembly:
 
-## Run on VSC
+| Field | Value |
+| --- | --- |
+| Assembly accession | `GCA_030254905.1` |
+| Assembly name | `UOB_LRV0_1` |
+| Genotype | `LRV0_1` |
+| FASTA sequences | 72 |
+| Total FASTA length | `129994773` bp |
+| Mitochondrial contig | `CM058182.1` |
+| MACS3 effective genome size | `129954900` |
 
-The complete VSC procedure is documented in [`docs/vsc-run.md`](docs/vsc-run.md). The short form is:
+The effective genome size is defined as non-`N` nuclear bases after excluding the mitochondrial sequence. The reference metadata and generated index are maintained in the VSC data area rather than committed to Git. The official assembly record is available from [NCBI](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_030254905.1/).
 
-```bash
-nextflow run . \
-  -profile vsc \
-  -resume \
-  -work-dir "$VSC_SCRATCH/dmagna_atac/work" \
-  --samplesheet "$VSC_DATA/dmagna_atac/metadata/samplesheet.csv" \
-  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/dmagna_GCF_020631705.1.fa" \
-  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCF_020631705.1/index" \
-  --mitochondrial_contig 'NC_026914.1' \
-  --macs_genome_size '161439708' \
-  --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
-  --outdir "$VSC_DATA/dmagna_atac/results/run-001"
-```
-
-The `vsc` profile submits processes to Slurm and runs them with the local Apptainer SIF image. If the VSC allocation requires explicit values, add `--slurm_account <account>` and `--slurm_partition <partition>`.
-
-Before the first full run, use a small real paired-end subset to verify the container, reference index, mitochondrial contig, and scheduler configuration. Preserve the input manifest and execution records under `results/pipeline_info/` for every formal run.
-
-## Output structure
-
-The main outputs are organized as follows:
+## Repository structure
 
 ```text
-results/
-├── qc/raw/<sample_id>/
-├── qc/trimmed/<sample_id>/
-├── qc/multiqc/
-├── alignment/<sample_id>.sorted.bam[.bai]
-├── filtered_bam/<sample_id>.filtered.bam[.bai]
-├── peaks/<sample_id>.narrowPeak
-└── pipeline_info/
+main.nf                         Nextflow workflow
+nextflow.config                 local and VSC execution profiles
+nextflow_schema.json            parameter schema
+environment.yml                 pinned software environment
+containers/dmagna-atac.def      Apptainer image definition
+bin/validate_samplesheet.py     input validation and normalization
+examples/                       sample-sheet examples
+docs/pipeline-design.md         workflow design and scope
+docs/vsc-run.md                 VSC storage and execution guide
+tests/                          validation tests
 ```
 
-## Next steps
+## Documentation
 
-Before the formal analysis, complete these tasks:
+- [Pipeline design](docs/pipeline-design.md) — workflow contract, process boundaries, and Version 1 scope.
+- [VSC execution guide](docs/vsc-run.md) — repository, storage, Apptainer, reference, and Slurm conventions.
+- [Sample sheet example](examples/samplesheet.example.csv) — input format with placeholder paths.
 
-1. Pull the repository on VSC and build `dmagna-atac-0.1.0.sif` from the Apptainer definition.
-2. Confirm `condition` and `replicate` for the four samples from the experimental records, then add the real FASTQ paths to the VSC sample sheet.
-3. Confirm the reference version, mitochondrial contig name, and MACS3 effective genome size; generate and verify the BWA-MEM2 index on VSC.
-4. Run a small VSC smoke test, then run the complete four-sample workflow. Inspect `input_validation_report.txt`, MultiQC, BAM statistics, and the peak files for every sample.
+## Project status
 
-Differential accessibility, consensus peaks, peak annotation, motif analysis, and functional enrichment are outside the scope of Version 1. They should be designed separately after the four-sample QC and biological-replicate structure have been confirmed.
+The workflow structure, sample-sheet validation, Apptainer definition, selected input libraries, and reference configuration are prepared. The remaining work is the VSC compute-stage verification: building the Apptainer image, generating the BWA-MEM2 index, running a smoke test, and evaluating the first formal four-sample run.
