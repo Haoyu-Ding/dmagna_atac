@@ -2,16 +2,17 @@ Bootstrap: docker
 From: mambaorg/micromamba:1.5.8
 
 %files
-    environment.yml /tmp/environment.yml
+    environment.yml /opt/dmagna-atac/environment.yml
     bin/validate_samplesheet.py /opt/dmagna-atac/bin/validate_samplesheet.py
 
 %post
     export MAMBA_ROOT_PREFIX=/opt/conda
     mkdir -p /opt/dmagna-atac/bin
-    micromamba install --yes --name base --file /tmp/environment.yml
+    test -s /opt/dmagna-atac/environment.yml
+    micromamba install --yes --name base --file /opt/dmagna-atac/environment.yml
     micromamba clean --all --yes
     chmod 0755 /opt/dmagna-atac/bin/validate_samplesheet.py
-    rm -f /tmp/environment.yml
+    rm -f /opt/dmagna-atac/environment.yml
 
 %environment
     export MAMBA_ROOT_PREFIX=/opt/conda

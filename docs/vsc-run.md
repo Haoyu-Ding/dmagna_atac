@@ -50,7 +50,7 @@ git pull --ff-only
 
 ## 3. Load the VSC software modules
 
-Module names can differ between VSC clusters and toolchains. Check the available names first, then load one Nextflow module and one Apptainer module:
+This project targets the KU Leuven/UHasselt `wICE` cluster. Check the available module names first, then load explicit versions:
 
 ```bash
 module spider Nextflow
@@ -61,16 +61,15 @@ nextflow -version
 apptainer --version
 ```
 
-Do not put a guessed module version in the repository. Record the actual modules used in the run notes.
+Do not put a guessed module version in the repository. Record the actual modules used in the run notes. VSC job scripts should use a login shell (`#!/bin/bash -l`) and load the required modules inside the job environment.
 
 ## 4. Prepare the Apptainer environment
 
-The cache is kept in `VSC_DATA`, while temporary image conversion files are kept in `VSC_SCRATCH`:
+For a one-off container build, use node-local temporary directories as recommended by VSC. The immutable SIF image itself is stored in `VSC_DATA`:
 
 ```bash
-export APPTAINER_CACHEDIR="$VSC_DATA/dmagna_atac/containers/cache"
-export APPTAINER_TMPDIR="$VSC_SCRATCH/dmagna_atac/apptainer-tmp"
-export NXF_APPTAINER_CACHEDIR="$VSC_DATA/dmagna_atac/containers/cache"
+export APPTAINER_CACHEDIR="/tmp/$USER/apptainer_cachedir"
+export APPTAINER_TMPDIR="/tmp/$USER/apptainer_tmpdir"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 ```
 
@@ -80,13 +79,40 @@ The container source is the Apptainer definition committed in the repository:
 $HOME/dmagna_atac/containers/dmagna-atac.def
 ```
 
-Build the versioned SIF image on a compute node. The exact account or partition flags depend on the VSC allocation; append them if required by your project:
+Check which Slurm credit account is available to you:
+
+```bash
+sam-balance
+```
+
+Choose the account shown by that command. Every KU Leuven Tier-2 job must specify a valid account. The `interactive` partition is appropriate for this one-off container build and allows up to eight cores.
+
+Start an interactive wICE compute allocation, replacing `YOUR_ACCOUNT` with the account returned by `sam-balance`:
+
+```bash
+ACCOUNT='YOUR_ACCOUNT'
+
+srun --account="$ACCOUNT" \
+  --clusters=wice \
+  --partition=interactive \
+  --ntasks=1 \
+  --cpus-per-task=4 \
+  --mem=16G \
+  --time=01:00:00 \
+  --pty bash -l
+```
+
+Run the build inside the allocated shell:
 
 ```bash
 cd "$HOME/dmagna_atac"
+module load Apptainer/<available-version>
 
-srun --time=01:00:00 --mem=16G --cpus-per-task=4 \
-  apptainer build --fakeroot \
+export APPTAINER_CACHEDIR="/tmp/$USER/apptainer_cachedir"
+export APPTAINER_TMPDIR="/tmp/$USER/apptainer_tmpdir"
+mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
+
+apptainer build --fakeroot \
   "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
   "$HOME/dmagna_atac/containers/dmagna-atac.def"
 ```
@@ -132,7 +158,7 @@ The selected assembly is `GCA_030254905.1` (`UOB_LRV0_1`, genotype `LRV0_1`). Th
 
 ## 8. Submit the pipeline
 
-Launch Nextflow from a VSC login node, where `sbatch` is available. Nextflow submits the individual processes to Slurm. Use a persistent terminal session if the SSH connection may close.
+Launch Nextflow from a VSC login node, where `sbatch` is available. The `vsc` profile targets the wICE cluster and defaults to the `batch` partition; it passes the account and partition to each Slurm process. Use a persistent terminal session if the SSH connection may close.
 
 Example with a local SIF image:
 
@@ -149,16 +175,12 @@ nextflow run . \
   --mitochondrial_contig 'CM058182.1' \
   --macs_genome_size '129954900' \
   --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
-  --outdir "$VSC_DATA/dmagna_atac/results/run-001"
+  --outdir "$VSC_DATA/dmagna_atac/results/run-001" \
+  --slurm_account '<ACCOUNT_FROM_SAM_BALANCE>' \
+  --slurm_partition 'batch'
 ```
 
-If the project allocation requires an account or a non-default partition, append:
-
-```text
---slurm_account <project-account> --slurm_partition <partition-name>
-```
-
-Do not fill these values from memory; use the allocation information provided for your VSC project.
+Do not fill the account from memory; use the allocation information returned by `sam-balance`.
 
 ## 9. Verify a completed run
 
