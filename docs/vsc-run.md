@@ -158,29 +158,39 @@ The selected assembly is `GCA_030254905.1` (`UOB_LRV0_1`, genotype `LRV0_1`). Th
 
 ## 8. Submit the pipeline
 
-Launch Nextflow from a VSC login node, where `sbatch` is available. The `vsc` profile targets the wICE cluster and defaults to the `batch` partition; it passes the account and partition to each Slurm process. Use a persistent terminal session if the SSH connection may close.
-
-Example with a local SIF image:
+Submit the project Slurm launcher from a VSC login node. The launcher itself runs Nextflow in a small `batch` job, while the `vsc` profile submits every workflow process to Slurm. This keeps the run independent of the SSH connection and uses the local Apptainer SIF image.
 
 ```bash
 cd "$HOME/dmagna_atac"
 
-nextflow run . \
-  -profile vsc \
-  -resume \
-  -work-dir "$VSC_SCRATCH/dmagna_atac/work" \
-  --samplesheet "$VSC_DATA/dmagna_atac/metadata/samplesheet.csv" \
-  --reference_fasta "$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa" \
-  --bwa_index_dir "$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/index" \
-  --mitochondrial_contig 'CM058182.1' \
-  --macs_genome_size '129954900' \
-  --container "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
-  --outdir "$VSC_DATA/dmagna_atac/results/run-001" \
-  --slurm_account '<ACCOUNT_FROM_SAM_BALANCE>' \
-  --slurm_partition 'batch'
+module spider Nextflow
+module spider Apptainer
+
+export NEXTFLOW_MODULE='Nextflow/<available-version>'
+export APPTAINER_MODULE='Apptainer/<available-version>'
+
+# Edit the account line locally before submitting. Use the value returned by
+# sam-balance, and do not commit your real account to the public repository.
+${EDITOR:-vi} "$HOME/dmagna_atac/slurm/run-dmagna-atac.slurm"
+
+mkdir -p "$VSC_DATA/dmagna_atac/logs"
+
+sbatch \
+  --clusters=wice \
+  --output="$VSC_DATA/dmagna_atac/logs/dmagna-atac-%j.out" \
+  --error="$VSC_DATA/dmagna_atac/logs/dmagna-atac-%j.err" \
+  --export=ALL,NEXTFLOW_MODULE,APPTAINER_MODULE \
+  "$HOME/dmagna_atac/slurm/run-dmagna-atac.slurm"
 ```
 
-Do not fill the account from memory; use the allocation information returned by `sam-balance`.
+Replace both module placeholders with names shown by `module spider`. In the Slurm file, replace `#SBATCH --account=YOUR_ACCOUNT` with a valid account from `sam-balance`. The Slurm file supplies the reference, samplesheet, SIF, work, and output paths defined for this project. To run a new analysis, override `OUTDIR` and, when appropriate, `WORK_DIR` in the submission environment.
+
+Monitor the launcher and its child tasks with:
+
+```bash
+squeue --clusters=wice --user "$USER"
+tail -f "$VSC_DATA/dmagna_atac/logs/dmagna-atac-<JOBID>.out"
+```
 
 ## 9. Verify a completed run
 

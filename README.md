@@ -89,6 +89,7 @@ bin/validate_samplesheet.py     input validation and normalization
 examples/                       sample-sheet examples
 docs/pipeline-design.md         workflow design and scope
 docs/vsc-run.md                 VSC storage and execution guide
+slurm/run-dmagna-atac.slurm    Slurm launcher for the formal VSC run
 tests/                          validation tests
 ```
 
