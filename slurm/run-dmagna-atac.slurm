@@ -1,15 +1,20 @@
 #!/bin/bash -l
 #SBATCH --clusters=wice
-#SBATCH --account=YOUR_ACCOUNT
+#SBATCH --account=lp_svbelleghem
 #SBATCH --partition=batch
 #SBATCH --job-name=dmagna-atac
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=2G
-#SBATCH --time=3-00:00:00
+#SBATCH --time=2-00:00:00
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=haoyu.ding@student.kuleuven.be
 
 set -euo pipefail
+
+module load Nextflow/25.04.8
+module load RAPIDS/23.06-cuda11.8-runtime-ubuntu22.04-py3.10-apptainer-jupyter-1.24.0
 
 die() {
     echo "ERROR: $*" >&2
@@ -31,16 +36,6 @@ REFERENCE_FASTA="${REFERENCE_FASTA:-$DATA_ROOT/dmagna_atac/reference/GCA_0302549
 BWA_INDEX_DIR="${BWA_INDEX_DIR:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/index}"
 OUTDIR="${OUTDIR:-$DATA_ROOT/dmagna_atac/results/run-001}"
 WORK_DIR="${WORK_DIR:-$SCRATCH_ROOT/dmagna_atac/work}"
-
-if ! command -v nextflow >/dev/null 2>&1; then
-    : "${NEXTFLOW_MODULE:?Nextflow is not available; set NEXTFLOW_MODULE to the VSC module name}"
-    module load "$NEXTFLOW_MODULE"
-fi
-
-if ! command -v apptainer >/dev/null 2>&1; then
-    : "${APPTAINER_MODULE:?Apptainer is not available; set APPTAINER_MODULE to the VSC module name}"
-    module load "$APPTAINER_MODULE"
-fi
 
 [[ -d "$PROJECT_ROOT" ]] || die "Project directory not found: $PROJECT_ROOT"
 [[ -r "$SIF" ]] || die "Container not readable: $SIF"
