@@ -170,15 +170,32 @@ process FILTER_BAM {
     script:
     """
     set -euo pipefail
+
+    cleanup() {
+        rm -f \
+            ${meta.sample_id}.collated.bam \
+            ${meta.sample_id}.fixmate.bam \
+            ${meta.sample_id}.fixmate.sorted.bam \
+            ${meta.sample_id}.deduplicated.bam
+    }
+    trap cleanup EXIT
+
     samtools collate -@ ${task.cpus} -o ${meta.sample_id}.collated.bam ${sorted_bam}
     samtools fixmate -@ ${task.cpus} -m ${meta.sample_id}.collated.bam ${meta.sample_id}.fixmate.bam
+    rm -f ${meta.sample_id}.collated.bam
+
     samtools sort -@ ${task.cpus} -o ${meta.sample_id}.fixmate.sorted.bam ${meta.sample_id}.fixmate.bam
+    rm -f ${meta.sample_id}.fixmate.bam
+
     samtools markdup -@ ${task.cpus} -r ${meta.sample_id}.fixmate.sorted.bam ${meta.sample_id}.deduplicated.bam
+    rm -f ${meta.sample_id}.fixmate.sorted.bam
 
     samtools view -h -f 3 -F 3852 ${meta.sample_id}.deduplicated.bam \
         | awk -v mitochondrial_contig='${params.mitochondrial_contig}' \
             'BEGIN {OFS="\\t"} /^@/ {print; next} \$3 != mitochondrial_contig && \$7 != mitochondrial_contig {print}' \
         | samtools view -b -o ${meta.sample_id}.filtered.bam -
+    rm -f ${meta.sample_id}.deduplicated.bam
+
     samtools index -@ ${task.cpus} ${meta.sample_id}.filtered.bam
     samtools flagstat -@ ${task.cpus} ${meta.sample_id}.filtered.bam > ${meta.sample_id}.filtered.flagstat.txt
     """
