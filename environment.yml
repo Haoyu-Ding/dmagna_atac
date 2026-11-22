@@ -11,3 +11,4 @@ dependencies:
   - samtools=1.20
   - macs3=3.0.3
   - multiqc=1.25.1
+  - procps-ng=4.0.4

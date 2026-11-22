@@ -113,7 +113,7 @@ export APPTAINER_TMPDIR="/tmp/$USER/apptainer_tmpdir"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 apptainer build --fakeroot \
-  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.0.sif" \
+  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.1.sif" \
   "$HOME/dmagna_atac/containers/dmagna-atac.def"
 ```
 

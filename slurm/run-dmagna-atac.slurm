@@ -25,7 +25,7 @@ PIPELINE_PARTITION="${SLURM_JOB_PARTITION:-batch}"
 [[ -n "$ACCOUNT" ]] || die "No Slurm account found; submit with --account=<account>"
 [[ "$ACCOUNT" != "YOUR_ACCOUNT" ]] || die "Replace YOUR_ACCOUNT in the #SBATCH --account line before submission"
 
-SIF="${SIF:-$DATA_ROOT/dmagna_atac/containers/dmagna-atac-0.1.0.sif}"
+SIF="${SIF:-$DATA_ROOT/dmagna_atac/containers/dmagna-atac-0.1.1.sif}"
 SAMPLESHEET="${SAMPLESHEET:-$DATA_ROOT/dmagna_atac/metadata/samplesheet.csv}"
 REFERENCE_FASTA="${REFERENCE_FASTA:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa}"
 BWA_INDEX_DIR="${BWA_INDEX_DIR:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/index}"
