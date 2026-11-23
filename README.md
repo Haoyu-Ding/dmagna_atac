@@ -1,69 +1,91 @@
 # dmagna-atac
 
-An independent paired-end ATAC-seq workflow for *Daphnia magna*, developed as a KU Leuven research-course project.
+`dmagna-atac` is a Nextflow pipeline for processing paired-end ATAC-seq data from *Daphnia magna*. It takes raw FASTQ files and an explicit sample sheet as input and produces filtered alignment files, per-sample accessible-chromatin peak calls, and quality-control reports.
 
-The project takes inspiration from [nf-core/atacseq](https://github.com/nf-core/atacseq), but is implemented as a smaller, independently designed workflow. Its purpose is to provide a clear and reproducible starting point for learning workflow development, containerized software management, and ATAC-seq data processing on the KU Leuven VSC.
+Developed as a KU Leuven research-course project, the pipeline runs on Nextflow and Apptainer. It takes inspiration from [nf-core/atacseq](https://github.com/nf-core/atacseq) and is an independent implementation with a focused initial scope.
 
-## Project goal
+## Current pipeline
 
-Version 1 focuses on a complete per-sample path from raw paired-end reads to reproducible peak calls. The workflow is designed to accept an arbitrary number of samples through an explicit sample sheet; sample identity is never inferred from directory contents or sequencing filenames.
+The current implementation covers read processing through per-sample peak calling. Sample selection and metadata come from a CSV sample sheet, and the workflow supports a variable number of samples without changes to the code.
 
-The current project dataset contains four selected libraries:
-
-| Sample | Condition | Source library |
-| --- | --- | --- |
-| `fish_r4` | fish | `S17`, `CCTGTCAT-ATGACAGG` |
-| `fish_r5` | fish | `S22`, `TTAGGTCG-CGACCTAA` |
-| `control_r4` | control | `S20`, `GTGCCATA-TATGGCAC` |
-| `control_r1` | control | `S19`, `GGCGTTAT-ATAACGCC` |
-
-Index reads, undetermined reads, and the two excluded libraries are not part of this Version 1 input set. The final sample sheet remains a VSC-side metadata file because it contains storage-specific FASTQ paths.
-
-## Version 1 workflow
-
-```text
-paired-end FASTQ
-        |
-sample-sheet validation
-        |
-raw-read QC (FastQC)
-        |
-adapter and quality trimming (Cutadapt)
-        |
-paired-end alignment (BWA-MEM2)
-        |
-BAM sorting, indexing, duplicate removal, filtering
-        |
-mitochondrial-read removal
-        |
-per-sample peak calling (MACS3, BAMPE)
-        |
-QC aggregation and execution reports (MultiQC / Nextflow)
+```mermaid
+flowchart TD
+    A["Sample sheet + paired-end FASTQ"] --> B["Validate input and group lanes by sample"]
+    B --> C["Raw-read QC · FastQC"]
+    B --> D["Merge lanes and trim adapters · Cutadapt"]
+    D --> E["Trimmed-read QC · FastQC"]
+    D --> F["Align reads · BWA-MEM2"]
+    F --> G["Sort, deduplicate and filter BAM · Samtools"]
+    G --> H["Per-sample peak calling · MACS3 BAMPE"]
+    C --> I["Aggregate QC reports · MultiQC"]
+    D --> I
+    E --> I
+    G --> I
+    H --> I
 ```
 
-The main per-sample outputs are:
+| Stage | Current implementation |
+| --- | --- |
+| Input validation | Checks required columns, sample IDs, file availability, gzip signatures, R1/R2 filename pairing, duplicate file entries, and metadata consistency. Saves the normalized sample sheet and validation report. |
+| Lane handling | Combines read pairs sharing a `sample_id` before trimming, producing one analysis unit per sample. |
+| Read QC and trimming | Runs FastQC before and after Cutadapt. Removes adapters and discards pairs if either read is shorter than the minimum length, which defaults to 20 bp. Additional Cutadapt options can be supplied with `--extra_cutadapt`. |
+| Alignment | Aligns paired reads with BWA-MEM2 and produces sorted, indexed BAM files. |
+| BAM processing | Uses Samtools to remove duplicates, retain properly paired primary alignments, exclude QC-failed reads, and remove alignments involving the specified mitochondrial contig. Produces indexed filtered BAMs and `flagstat` summaries. |
+| Peak calling | Runs MACS3 independently for each sample in `BAMPE` mode using the supplied effective genome size. |
+| Reporting | Aggregates QC reports with MultiQC and records software versions, validated inputs, and Nextflow execution reports. |
 
-- filtered, indexed BAM files;
-- MACS3 `narrowPeak` and summit files;
-- raw and trimmed-read QC reports;
-- alignment and filtering statistics;
-- a combined MultiQC report;
-- input, software, and workflow execution records.
+These are the stages implemented in the repository. Run completion and data quality are assessed from the corresponding VSC execution and QC reports.
 
-Differential accessibility, consensus peak construction, peak annotation, motif analysis, and functional enrichment are intentionally outside the scope of Version 1.
+## Inputs
 
-## Reproducibility design
+The required inputs are:
 
-- **Nextflow** controls process dependencies, data flow, parallel execution, and resumability.
-- **Apptainer** provides the versioned software environment required on VSC.
-- **Slurm** is used for scheduled execution on VSC.
-- **The sample sheet is the input contract.** It defines sample IDs, paired FASTQ files, and optional metadata such as condition and replicate.
-- **Reference parameters are explicit.** The workflow requires the reference FASTA, BWA-MEM2 index, mitochondrial contig, and MACS3 effective genome size to be supplied together.
-- **Large data are kept outside Git.** Code and configuration belong in the repository; FASTQ files, reference files, containers, intermediate files, and results belong in VSC storage.
+| Parameter | Input |
+| --- | --- |
+| `--samplesheet` | CSV listing sample IDs and paired FASTQ paths. |
+| `--reference_fasta` | Reference genome FASTA. |
+| `--bwa_index_dir` | BWA-MEM2 index files generated from that FASTA, with the FASTA filename as their prefix. |
+| `--mitochondrial_contig` | Mitochondrial sequence name in the reference. |
+| `--macs_genome_size` | Effective genome size used for peak calling. |
+| `--container` | Path to the Apptainer SIF image. |
 
-## Current reference configuration
+The sample sheet requires `sample_id`, `fastq_1`, and `fastq_2`. The optional `condition` and `replicate` columns carry experimental metadata; they do not currently trigger group comparisons or statistical testing.
 
-The selected working reference is the NCBI *D. magna* GenBank assembly:
+```csv
+sample_id,fastq_1,fastq_2,condition,replicate
+sample_A,/path/to/sample_A_L001_R1.fastq.gz,/path/to/sample_A_L001_R2.fastq.gz,fish,1
+sample_A,/path/to/sample_A_L002_R1.fastq.gz,/path/to/sample_A_L002_R2.fastq.gz,fish,1
+sample_B,/path/to/sample_B_L001_R1.fastq.gz,/path/to/sample_B_L001_R2.fastq.gz,control,1
+```
+
+Use the same `sample_id` for multiple lanes of one sample and a different ID for each biological replicate. Repeated rows must have consistent metadata. Only files explicitly listed in the sample sheet are processed. Use absolute FASTQ paths accessible on the compute nodes.
+
+The current project input selection contains `fish_r4`, `fish_r5`, `control_r4`, and `control_r1`; these names are not hard-coded into the workflow. A [sample sheet example](examples/samplesheet.example.csv) is included in the repository, while the actual sheet with VSC storage paths is maintained alongside the data.
+
+## Outputs
+
+Results are written under `--outdir` (default: `results/`):
+
+| Directory | Main contents |
+| --- | --- |
+| `alignment/` | Sorted BAM files and indexes before filtering. |
+| `filtered_bam/` | Final filtered BAM files, indexes, and `flagstat` summaries. |
+| `peaks/` | Per-sample MACS3 `narrowPeak`, summit BED, and peak-report files. |
+| `qc/` | Published raw FastQC output, Cutadapt JSON reports, and the combined MultiQC report incorporating raw and trimmed-read QC. |
+| `pipeline_info/` | Validated sample sheet, input-file manifest, validation report, software versions, and Nextflow execution report, timeline, trace, and DAG. |
+
+The filtered BAMs and per-sample peak files provide the starting point for the downstream analyses planned below.
+
+## Execution and reproducibility
+
+- **Nextflow DSL2** manages dependencies, sample processing, and resumption with `-resume`.
+- **Apptainer** supplies the software environment defined by `environment.yml` and `containers/dmagna-atac.def`.
+
+See the [VSC execution guide](docs/vsc-run.md) for setup and submission details. The repository includes a [Slurm launcher](slurm/run-dmagna-atac.slurm); review its account, notification settings, module names, and storage paths for your environment before submission.
+
+## Project reference configuration
+
+The project uses the following *D. magna* reference settings, recorded in the existing project documentation:
 
 | Field | Value |
 | --- | --- |
@@ -75,13 +97,28 @@ The selected working reference is the NCBI *D. magna* GenBank assembly:
 | Mitochondrial contig | `CM058182.1` |
 | MACS3 effective genome size | `129954900` |
 
-The effective genome size is defined as non-`N` nuclear bases after excluding the mitochondrial sequence. The reference metadata and generated index are maintained in the VSC data area rather than committed to Git. The official assembly record is available from [NCBI](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_030254905.1/).
+The project defines the effective genome size as the number of non-`N` nuclear bases after excluding the mitochondrial sequence. Reference files, metadata, and generated indexes are maintained in the VSC data area.
+
+## Planned additions
+
+Future development will extend the current per-sample workflow toward comparisons between experimental conditions. The following features are planned and are not implemented in the current pipeline:
+
+| Planned feature | Purpose |
+| --- | --- |
+| ATAC-seq-specific QC | Add fragment-length distributions, fraction of reads in peaks (FRiP), and TSS enrichment where suitable gene annotations are available. |
+| Genome-browser tracks | Export normalized coverage tracks for inspecting accessibility around regions of interest. |
+| Replicate assessment and consensus peaks | Evaluate agreement between replicates and construct a shared set of regions for comparisons across samples. |
+| Peak quantification and differential accessibility | Build a fragment-count matrix over consensus regions and compare conditions using a confirmed replicate structure and statistical design. |
+| Peak annotation | Associate accessible regions with genes and genomic features using annotations matched to the reference assembly. |
+| Motif analysis and functional enrichment | Explore sequence motifs and biological functions associated with selected accessible regions, subject to suitable motif and gene-annotation resources. |
+
+Development priorities will be refined after reviewing the VSC run results and sample quality. Group-level analyses will require confirmed experimental metadata and an appropriate replicate design.
 
 ## Repository structure
 
 ```text
 main.nf                         Nextflow workflow
-nextflow.config                 local and VSC execution profiles
+nextflow.config                 process resources and VSC execution profile
 nextflow_schema.json            parameter schema
 environment.yml                 pinned software environment
 containers/dmagna-atac.def      Apptainer image definition
@@ -89,7 +126,7 @@ bin/validate_samplesheet.py     input validation and normalization
 examples/                       sample-sheet examples
 docs/pipeline-design.md         workflow design and scope
 docs/vsc-run.md                 VSC storage and execution guide
-slurm/run-dmagna-atac.slurm    Slurm launcher for the formal VSC run
+slurm/run-dmagna-atac.slurm      Slurm launcher for VSC runs
 tests/                          validation tests
 ```
 
@@ -98,7 +135,3 @@ tests/                          validation tests
 - [Pipeline design](docs/pipeline-design.md) — workflow contract, process boundaries, and Version 1 scope.
 - [VSC execution guide](docs/vsc-run.md) — repository, storage, Apptainer, reference, and Slurm conventions.
 - [Sample sheet example](examples/samplesheet.example.csv) — input format with placeholder paths.
-
-## Project status
-
-The workflow structure, sample-sheet validation, Apptainer definition, selected input libraries, and reference configuration are prepared. The remaining work is the VSC compute-stage verification: building the Apptainer image, generating the BWA-MEM2 index, running a smoke test, and evaluating the first formal four-sample run.
