@@ -106,11 +106,9 @@ Future development will extend the current per-sample workflow toward comparison
 | Planned feature | Purpose |
 | --- | --- |
 | ATAC-seq-specific QC | Add fragment-length distributions, fraction of reads in peaks (FRiP), and TSS enrichment where suitable gene annotations are available. |
-| Genome-browser tracks | Export normalized coverage tracks for inspecting accessibility around regions of interest. |
 | Replicate assessment and consensus peaks | Evaluate agreement between replicates and construct a shared set of regions for comparisons across samples. |
 | Peak quantification and differential accessibility | Build a fragment-count matrix over consensus regions and compare conditions using a confirmed replicate structure and statistical design. |
 | Peak annotation | Associate accessible regions with genes and genomic features using annotations matched to the reference assembly. |
-| Motif analysis and functional enrichment | Explore sequence motifs and biological functions associated with selected accessible regions, subject to suitable motif and gene-annotation resources. |
 
 Development priorities will be refined after reviewing the VSC run results and sample quality. Group-level analyses will require confirmed experimental metadata and an appropriate replicate design.
 
