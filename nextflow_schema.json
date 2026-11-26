@@ -15,6 +15,10 @@
       "type": "string",
       "description": "Directory containing the BWA-MEM2 index files for the reference"
     },
+    "gene_annotation": {
+      "type": "string",
+      "description": "GFF3 or GTF annotation matching the reference FASTA; used for deepTools TSS and gene-body plots"
+    },
     "mitochondrial_contig": {
       "type": "string",
       "description": "Mitochondrial contig name in the selected reference"
@@ -36,6 +40,18 @@
       "minimum": 1,
       "default": 20
     },
+    "bigwig_bin_size": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10,
+      "description": "Bin size in bases for CPM-normalized bigWig coverage"
+    },
+    "fingerprint_bins": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 200000,
+      "description": "Number of genome bins sampled by deepTools plotFingerprint"
+    },
     "slurm_partition": {
       "type": ["string", "null"],
       "description": "Optional VSC Slurm partition"
@@ -49,6 +65,7 @@
     "samplesheet",
     "reference_fasta",
     "bwa_index_dir",
+    "gene_annotation",
     "mitochondrial_contig",
     "macs_genome_size",
     "container"

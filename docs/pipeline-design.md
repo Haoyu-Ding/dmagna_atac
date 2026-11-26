@@ -22,6 +22,9 @@ The first version will process an arbitrary number of paired-end ATAC-seq sample
 - BAM sorting and indexing.
 - Filtering of unsuitable alignments.
 - PCR duplicate and mitochondrial-read handling.
+- nf-core/atacseq-style paired-end filtering except blacklist removal.
+- CPM-normalized bigWig coverage.
+- deepTools TSS and gene-body profiles/heatmaps and BAM-based fingerprint QC.
 - Per-sample peak calling in paired-end mode.
 - Per-sample and run-level QC summaries.
 - Nextflow execution reports and a record of the validated input.
@@ -164,8 +167,12 @@ validated samplesheet
         ↓
 sample-level metadata channel
         ↓
-FastQC → trimming → alignment → BAM processing → peak calling
+FastQC → trimming → alignment → paired-end filtering → bigWig/deepTools QC → peak calling
 ```
+
+### 8.1 Gene annotation input
+
+The `--gene_annotation` input must be a GFF3 or GTF file matching the selected reference FASTA. It supplies gene-level intervals for deepTools TSS and gene-body analyses. The workflow converts gene features (or transcript features if gene rows are absent) to BED6 and verifies that sequence names and gene coordinates fit the filtered BAM reference.
 
 Independent samples should run in parallel whenever VSC resources permit. The downstream aggregation steps collect results from the channel rather than assuming a fixed sample count.
 
@@ -180,13 +187,34 @@ flowchart LR
     E --> F["Paired-end alignment"]
     F --> G["Sort and index BAM"]
     G --> H["Filter alignments"]
-    H --> I["Remove duplicates and mitochondrial reads"]
-    I --> J["MACS3 paired-end peak calling"]
-    J --> K["Per-sample peaks and QC"]
-    K --> L["Run-level summary"]
+    H --> I["Remove duplicates, mitochondrial and unsuitable read pairs"]
+    I --> J["CPM-normalized bigWig coverage"]
+    J --> K["deepTools TSS/gene-body matrices, profiles and heatmaps"]
+    I --> L["deepTools plotFingerprint"]
+    K --> M["MACS3 paired-end peak calling"]
+    L --> M
+    M --> N["Per-sample peaks and QC"]
+    N --> O["Run-level summary"]
 ```
 
-The first version will call peaks independently for each `sample_id`. It will not combine Fish or Control samples into consensus peaks until the biological replicate structure and the intended downstream analysis have been confirmed.
+The deepTools stage uses all samples' bigWigs for the same annotation-derived gene intervals. `plotFingerprint` uses all filtered, indexed BAMs. Peak calling starts after this QC stage completes. A merged set of called peaks is not an input to these plots; that set can only be constructed after peak calling and is outside this stage. The first version will call peaks independently for each `sample_id`.
+
+### 9.1 Alignment filtering contract
+
+After duplicate marking/removal and before indexing the final filtered BAM, retain only complete pairs that pass all of these rules:
+
+- both mates are mapped primary alignments, not duplicates, and not QC-failed;
+- each read has MAPQ at least 1 and no more than four `NM` edit-distance mismatches;
+- neither read is soft-clipped;
+- the fragment is no longer than 2,000 bp;
+- both mates map to the same reference sequence and have FR orientation;
+- neither mate maps to the named mitochondrial contig.
+
+If either mate fails, discard the pair. No blacklist BED is used. A per-sample TSV records the number of retained and removed pairs and pair-level filter reasons.
+
+### 9.2 Coverage and deepTools
+
+`bamCoverage` creates one CPM-normalized bigWig per sample using a default 10 bp bin size. deepTools runs `computeMatrix` twice against gene-level intervals: once relative to the TSS (2 kb on either side), and once across a scaled gene body (with 2 kb flanks). Each matrix feeds `plotProfile` and `plotHeatmap`. `plotFingerprint` evaluates the indexed filtered BAMs. These QC outputs complete before MACS3 starts.
 
 ## 10. Expected outputs
 
@@ -203,7 +231,17 @@ results/
 │   └── <sample_id>.sorted.bam.bai
 ├── filtered_bam/
 │   ├── <sample_id>.filtered.bam
-│   └── <sample_id>.filtered.bam.bai
+│   ├── <sample_id>.filtered.bam.bai
+│   ├── <sample_id>.filtered.flagstat.txt
+│   └── <sample_id>.filter_metrics.tsv
+├── bigwig/
+│   └── <sample_id>.CPM.bw
+├── deeptools/
+│   ├── tss_profile.pdf
+│   ├── tss_heatmap.pdf
+│   ├── gene_body_profile.pdf
+│   ├── gene_body_heatmap.pdf
+│   └── fingerprint.pdf
 ├── peaks/
 │   ├── <sample_id>.narrowPeak
 │   ├── <sample_id>.summits.bed
@@ -246,9 +284,12 @@ The Apptainer definition at `containers/dmagna-atac.def` is the software-environ
 Version 1 is considered functional when it can:
 
 - accept a sample sheet with an arbitrary number of valid paired-end samples;
+- require a gene annotation matching the selected reference;
 - reject missing, unmatched, or ambiguous input files before analysis;
 - process each valid sample without hard-coded sample names;
 - produce one final filtered BAM and one peak result per sample;
+- retain or discard read pairs together under the filtering rules;
+- produce CPM bigWigs and annotation-based deepTools plots before peak calling;
 - produce a run-level QC summary;
 - record the exact validated input sample sheet;
 - run reproducibly on the VSC with the pinned container environment;

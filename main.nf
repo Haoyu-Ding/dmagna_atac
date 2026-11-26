@@ -10,6 +10,7 @@ nextflow.enable.dsl=2
 params.samplesheet = null
 params.reference_fasta = null
 params.bwa_index_dir = null
+params.gene_annotation = null
 params.mitochondrial_contig = null
 params.macs_genome_size = null
 params.outdir = 'results'
@@ -20,6 +21,8 @@ params.adapter_r2 = 'AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT'
 params.extra_cutadapt = ''
 params.extra_bwa = ''
 params.extra_macs = ''
+params.bigwig_bin_size = 10
+params.fingerprint_bins = 200000
 
 
 process VALIDATE_INPUT {
@@ -166,6 +169,7 @@ process FILTER_BAM {
     output:
     tuple val(meta), path("${meta.sample_id}.filtered.bam"), path("${meta.sample_id}.filtered.bam.bai"), emit: filtered
     path "${meta.sample_id}.filtered.flagstat.txt", emit: flagstat
+    path "${meta.sample_id}.filter_metrics.tsv", emit: filter_metrics
 
     script:
     """
@@ -176,7 +180,9 @@ process FILTER_BAM {
             ${meta.sample_id}.collated.bam \
             ${meta.sample_id}.fixmate.bam \
             ${meta.sample_id}.fixmate.sorted.bam \
-            ${meta.sample_id}.deduplicated.bam
+            ${meta.sample_id}.deduplicated.bam \
+            ${meta.sample_id}.deduplicated.collated.bam \
+            ${meta.sample_id}.filtered.unsorted.bam
     }
     trap cleanup EXIT
 
@@ -187,17 +193,123 @@ process FILTER_BAM {
     samtools sort -@ ${task.cpus} -o ${meta.sample_id}.fixmate.sorted.bam ${meta.sample_id}.fixmate.bam
     rm -f ${meta.sample_id}.fixmate.bam
 
-    samtools markdup -@ ${task.cpus} -r ${meta.sample_id}.fixmate.sorted.bam ${meta.sample_id}.deduplicated.bam
+    samtools markdup -@ ${task.cpus} ${meta.sample_id}.fixmate.sorted.bam ${meta.sample_id}.deduplicated.bam
     rm -f ${meta.sample_id}.fixmate.sorted.bam
 
-    samtools view -h -f 3 -F 3852 ${meta.sample_id}.deduplicated.bam \
-        | awk -v mitochondrial_contig='${params.mitochondrial_contig}' \
-            'BEGIN {OFS="\\t"} /^@/ {print; next} \$3 != mitochondrial_contig && \$7 != mitochondrial_contig {print}' \
-        | samtools view -b -o ${meta.sample_id}.filtered.bam -
+    samtools collate -@ ${task.cpus} -o ${meta.sample_id}.deduplicated.collated.bam ${meta.sample_id}.deduplicated.bam
+    python /opt/dmagna-atac/bin/filter_paired_alignments.py \
+        --input ${meta.sample_id}.deduplicated.collated.bam \
+        --output ${meta.sample_id}.filtered.unsorted.bam \
+        --metrics ${meta.sample_id}.filter_metrics.tsv \
+        --mitochondrial-contig '${params.mitochondrial_contig}' \
+        --max-mismatches 4 \
+        --max-insert-size 2000
+    samtools sort -@ ${task.cpus} -o ${meta.sample_id}.filtered.bam ${meta.sample_id}.filtered.unsorted.bam
     rm -f ${meta.sample_id}.deduplicated.bam
+    rm -f ${meta.sample_id}.deduplicated.collated.bam ${meta.sample_id}.filtered.unsorted.bam
 
     samtools index -@ ${task.cpus} ${meta.sample_id}.filtered.bam
     samtools flagstat -@ ${task.cpus} ${meta.sample_id}.filtered.bam > ${meta.sample_id}.filtered.flagstat.txt
+    """
+}
+
+
+process BAM_COVERAGE {
+    tag "${meta.sample_id}"
+
+    publishDir "${params.outdir}/bigwig", mode: 'copy', pattern: '*.bw'
+
+    input:
+    tuple val(meta), path(filtered_bam), path(filtered_bai)
+
+    output:
+    tuple val(meta), path(filtered_bam), path(filtered_bai), path("${meta.sample_id}.CPM.bw"), emit: signal
+
+    script:
+    """
+    bamCoverage \
+        --bam ${filtered_bam} \
+        --outFileName ${meta.sample_id}.CPM.bw \
+        --outFileFormat bigwig \
+        --normalizeUsing CPM \
+        --binSize ${params.bigwig_bin_size} \
+        --numberOfProcessors ${task.cpus}
+    """
+}
+
+
+process DEEPTOOLS_QC {
+    tag 'deeptools-qc'
+
+    publishDir "${params.outdir}", mode: 'copy'
+
+    input:
+    tuple val(metas), path(filtered_bams), path(filtered_bais), path(bigwigs)
+    path gene_annotation
+
+    output:
+    path 'deeptools', emit: reports
+    val 'deeptools_complete', emit: complete
+
+    script:
+    def sample_labels = metas.collect { it.sample_id }.join(' ')
+    def bam_args = filtered_bams.collect { "'${it.name}'" }.join(' ')
+    def bigwig_args = bigwigs.collect { "'${it.name}'" }.join(' ')
+    """
+    set -euo pipefail
+    mkdir -p deeptools/regions
+    python /opt/dmagna-atac/bin/make_deeptools_regions.py \
+        --annotation '${gene_annotation}' \
+        --bam ${filtered_bams[0]} \
+        --output deeptools/regions/gene_body.bed
+
+    computeMatrix reference-point \
+        --referencePoint TSS \
+        --scoreFileName ${bigwig_args} \
+        --regionsFileName deeptools/regions/gene_body.bed \
+        --beforeRegionStartLength 2000 \
+        --afterRegionStartLength 2000 \
+        --binSize ${params.bigwig_bin_size} \
+        --samplesLabel ${sample_labels} \
+        --missingDataAsZero \
+        --numberOfProcessors ${task.cpus} \
+        --outFileName deeptools/tss_matrix.gz
+    plotProfile \
+        --matrixFile deeptools/tss_matrix.gz \
+        --plotTitle 'ATAC-seq signal around gene TSS' \
+        --outFileName deeptools/tss_profile.pdf
+    plotHeatmap \
+        --matrixFile deeptools/tss_matrix.gz \
+        --plotTitle 'ATAC-seq signal around gene TSS' \
+        --outFileName deeptools/tss_heatmap.pdf
+
+    computeMatrix scale-regions \
+        --scoreFileName ${bigwig_args} \
+        --regionsFileName deeptools/regions/gene_body.bed \
+        --beforeRegionStartLength 2000 \
+        --afterRegionStartLength 2000 \
+        --regionBodyLength 5000 \
+        --binSize ${params.bigwig_bin_size} \
+        --samplesLabel ${sample_labels} \
+        --missingDataAsZero \
+        --numberOfProcessors ${task.cpus} \
+        --outFileName deeptools/gene_body_matrix.gz
+    plotProfile \
+        --matrixFile deeptools/gene_body_matrix.gz \
+        --plotTitle 'ATAC-seq signal across gene bodies' \
+        --outFileName deeptools/gene_body_profile.pdf
+    plotHeatmap \
+        --matrixFile deeptools/gene_body_matrix.gz \
+        --plotTitle 'ATAC-seq signal across gene bodies' \
+        --outFileName deeptools/gene_body_heatmap.pdf
+
+    plotFingerprint \
+        --bamfiles ${bam_args} \
+        --labels ${sample_labels} \
+        --skipZeros \
+        --numberOfSamples ${params.fingerprint_bins} \
+        --plotFile deeptools/fingerprint.pdf \
+        --outRawCounts deeptools/fingerprint_counts.tsv
     """
 }
 
@@ -208,7 +320,7 @@ process CALL_PEAKS {
     publishDir "${params.outdir}/peaks", mode: 'copy', pattern: '*'
 
     input:
-    tuple val(meta), path(filtered_bam), path(filtered_bai)
+    tuple val(meta), path(filtered_bam), path(filtered_bai), val(deeptools_complete)
 
     output:
     tuple val(meta), path("${meta.sample_id}.narrowPeak"), path("${meta.sample_id}.summits.bed"), emit: peaks
@@ -235,7 +347,7 @@ process CALL_PEAKS {
 process MULTIQC_SUMMARY {
     tag 'run-level-qc'
 
-    publishDir "${params.outdir}/qc/multiqc", mode: 'copy', pattern: '*'
+    publishDir "${params.outdir}/qc", mode: 'copy'
 
     input:
     path raw_qc
@@ -243,6 +355,7 @@ process MULTIQC_SUMMARY {
     path cutadapt_reports
     path alignment_reports
     path peak_reports
+    path deeptools_reports
 
     output:
     path 'multiqc', emit: multiqc
@@ -278,6 +391,8 @@ process SOFTWARE_VERSIONS {
         echo 'samtools: "'\$(samtools --version 2>&1 | head -n 1)'"'
         echo 'macs3: "'\$(macs3 --version 2>&1 | head -n 1)'"'
         echo 'multiqc: "'\$(multiqc --version 2>&1 | head -n 1)'"'
+        echo 'deepTools: "'\$(bamCoverage --version 2>&1 | head -n 1)'"'
+        echo 'pysam: "'\$(python -c 'import pysam; print(pysam.__version__)')'"'
     } > software_versions.yml
     """
 }
@@ -292,6 +407,9 @@ workflow {
     }
     if (!params.bwa_index_dir) {
         error "Missing --bwa_index_dir: provide the directory containing the BWA-MEM2 index files"
+    }
+    if (!params.gene_annotation) {
+        error "Missing --gene_annotation: provide a GFF3 or GTF matching the reference FASTA"
     }
     if (!params.mitochondrial_contig) {
         error "Missing --mitochondrial_contig: provide the mitochondrial contig name for this reference"
@@ -310,6 +428,7 @@ workflow {
         type: 'file',
         checkIfExists: true,
     ).collect()
+    gene_annotation_ch = Channel.fromPath(params.gene_annotation, checkIfExists: true).first()
 
     VALIDATE_INPUT(samplesheet_ch)
 
@@ -330,7 +449,21 @@ workflow {
     TRIMMED_FASTQC(TRIM_READS.out.trimmed)
     ALIGN_READS(TRIM_READS.out.trimmed, reference_ch, bwa_index_ch)
     FILTER_BAM(ALIGN_READS.out.aligned)
-    CALL_PEAKS(FILTER_BAM.out.filtered)
+    BAM_COVERAGE(FILTER_BAM.out.filtered)
+
+    deeptools_inputs = BAM_COVERAGE.out.signal
+        .collect()
+        .map { rows ->
+            tuple(
+                rows.collect { it[0] },
+                rows.collect { it[1] },
+                rows.collect { it[2] },
+                rows.collect { it[3] },
+            )
+        }
+    DEEPTOOLS_QC(deeptools_inputs, gene_annotation_ch)
+    peak_inputs = FILTER_BAM.out.filtered.combine(DEEPTOOLS_QC.out.complete)
+    CALL_PEAKS(peak_inputs)
 
     MULTIQC_SUMMARY(
         RAW_FASTQC.out.raw_qc.map { meta, report_dir -> report_dir }.collect(),
@@ -338,6 +471,7 @@ workflow {
         TRIM_READS.out.cutadapt_report.collect(),
         FILTER_BAM.out.flagstat.collect(),
         CALL_PEAKS.out.peak_report.collect(),
+        DEEPTOOLS_QC.out.reports,
     )
     SOFTWARE_VERSIONS(Channel.value(true))
 }

@@ -30,10 +30,11 @@ PIPELINE_PARTITION="${SLURM_JOB_PARTITION:-batch}"
 [[ -n "$ACCOUNT" ]] || die "No Slurm account found; submit with --account=<account>"
 [[ "$ACCOUNT" != "YOUR_ACCOUNT" ]] || die "Replace YOUR_ACCOUNT in the #SBATCH --account line before submission"
 
-SIF="${SIF:-$DATA_ROOT/dmagna_atac/containers/dmagna-atac-0.1.1.sif}"
+SIF="${SIF:-$DATA_ROOT/dmagna_atac/containers/dmagna-atac-0.2.0.sif}"
 SAMPLESHEET="${SAMPLESHEET:-$DATA_ROOT/dmagna_atac/metadata/samplesheet.csv}"
 REFERENCE_FASTA="${REFERENCE_FASTA:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa}"
 BWA_INDEX_DIR="${BWA_INDEX_DIR:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/index}"
+GENE_ANNOTATION="${GENE_ANNOTATION:-$DATA_ROOT/dmagna_atac/reference/GCA_030254905.1/annotation.gff3.gz}"
 OUTDIR="${OUTDIR:-$DATA_ROOT/dmagna_atac/results/run-001}"
 WORK_DIR="${WORK_DIR:-$SCRATCH_ROOT/dmagna_atac/work}"
 
@@ -41,6 +42,7 @@ WORK_DIR="${WORK_DIR:-$SCRATCH_ROOT/dmagna_atac/work}"
 [[ -r "$SIF" ]] || die "Container not readable: $SIF"
 [[ -r "$SAMPLESHEET" ]] || die "Samplesheet not readable: $SAMPLESHEET"
 [[ -r "$REFERENCE_FASTA" ]] || die "Reference FASTA not readable: $REFERENCE_FASTA"
+[[ -r "$GENE_ANNOTATION" ]] || die "Matching GFF3/GTF annotation not readable: $GENE_ANNOTATION"
 [[ -d "$BWA_INDEX_DIR" ]] || die "BWA index directory not found: $BWA_INDEX_DIR"
 
 INDEX_PREFIX="$BWA_INDEX_DIR/$(basename "$REFERENCE_FASTA")"
@@ -67,6 +69,7 @@ exec nextflow run "$PROJECT_ROOT" \
     --samplesheet "$SAMPLESHEET" \
     --reference_fasta "$REFERENCE_FASTA" \
     --bwa_index_dir "$BWA_INDEX_DIR" \
+    --gene_annotation "$GENE_ANNOTATION" \
     --mitochondrial_contig 'CM058182.1' \
     --macs_genome_size '129954900' \
     --container "$SIF" \

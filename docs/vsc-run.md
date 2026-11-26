@@ -113,11 +113,11 @@ export APPTAINER_TMPDIR="/tmp/$USER/apptainer_tmpdir"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 apptainer build --fakeroot \
-  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.1.1.sif" \
+  "$VSC_DATA/dmagna_atac/containers/dmagna-atac-0.2.0.sif" \
   "$HOME/dmagna_atac/containers/dmagna-atac.def"
 ```
 
-The `%test` section of the definition checks Python, FastQC, Cutadapt, BWA-MEM2, Samtools, MACS3, MultiQC, and the sample-sheet validator during the build. If the cluster does not allow `--fakeroot`, use the VSC-supported Apptainer build method for your account or contact VSC support; do not replace the definition with a separate unrecorded software installation.
+The `%test` section of the definition checks Python, FastQC, Cutadapt, BWA-MEM2, Samtools, MACS3, deepTools, MultiQC, and the workflow helper scripts during the build. If the cluster does not allow `--fakeroot`, use the VSC-supported Apptainer build method for your account or contact VSC support; do not replace the definition with a separate unrecorded software installation.
 
 ## 5. Transfer FASTQ files with Globus
 
@@ -152,9 +152,25 @@ Place the selected reference FASTA and its BWA-MEM2 index in the same reference 
 ```text
 $VSC_DATA/dmagna_atac/reference/GCA_030254905.1/dmagna_GCA_030254905.1.fa
 $VSC_DATA/dmagna_atac/reference/GCA_030254905.1/index/dmagna_GCA_030254905.1.fa.*
+$VSC_DATA/dmagna_atac/reference/GCA_030254905.1/annotation.gff3.gz
 ```
 
 The selected assembly is `GCA_030254905.1` (`UOB_LRV0_1`, genotype `LRV0_1`). The index files must be generated from this exact FASTA. For this assembly, use `CM058182.1` as the mitochondrial contig and `129954900` as the effective genome size. These values are required command-line parameters and are deliberately not guessed by the workflow.
+
+Download the matching GFF3 or GTF annotation for this exact assembly and save it as `annotation.gff3.gz` (or set `GENE_ANNOTATION` to its actual filename when submitting). The workflow derives gene intervals from the annotation and rejects it if none of its sequence names match the filtered BAM. Do not use an annotation for a different *D. magna* assembly or strain.
+
+To check whether NCBI's package includes an annotation file, use its Datasets CLI on VSC:
+
+```bash
+datasets download genome accession GCA_030254905.1 \
+  --include genome,gff3 \
+  --filename UOB_LRV0_1.zip
+unzip -q UOB_LRV0_1.zip -d UOB_LRV0_1
+find UOB_LRV0_1/ncbi_dataset/data -type f \
+  \( -name '*.gff' -o -name '*.gff3' -o -name '*.gtf' \)
+```
+
+NCBI's Datasets package supports GFF3/GTF when the assembly has an annotation available. If this package contains no GFF3/GTF, use the gene models associated with the LRV0_1 study, then confirm their sequence names against the reference FASTA before setting `GENE_ANNOTATION`.
 
 ## 8. Submit the pipeline
 
@@ -199,6 +215,10 @@ The run is complete only when Nextflow reports success and the result directory 
 ```text
 results/qc/multiqc/multiqc_report.html
 results/filtered_bam/<sample_id>.filtered.bam
+results/bigwig/<sample_id>.CPM.bw
+results/deeptools/tss_profile.pdf
+results/deeptools/gene_body_heatmap.pdf
+results/deeptools/fingerprint.pdf
 results/peaks/<sample_id>.narrowPeak
 results/pipeline_info/samplesheet.used.csv
 results/pipeline_info/input_validation_report.txt
